@@ -1,15 +1,38 @@
 use nannou::app::Draw;
 use nannou::prelude::*;
 
+enum BeatKind {
+    Sin,
+    IntermittentSin,
+}
+
 pub struct Beat {
     interval: f32,
     scale: f32,
+    kind: BeatKind,
+    ph: f32,
 }
 
 impl Beat {
-    pub fn get(&self, t: i32) -> f32 {
+    pub fn get(&mut self, t: i32) -> f32 {
+        let s_t = t as f32 / self.interval;
+        match self.kind {
+            BeatKind::Sin => self.sin(s_t),
+            BeatKind::IntermittentSin=> {
+                if (s_t.floor() as i32 % 3 == 0) {
+                    self.ph += 1.0 / self.interval;
+                    return self.sin(self.ph * 2.0 * std::f32::consts::PI)
+                } else {
+                    self.ph = 0.25;
+                    return self.scale
+                }
+            }
+        }
+    }
+
+    fn sin(&self, t :f32) -> f32 {
         self.scale *
-        ((t as f32/self.interval).sin() + 1.0)/2.0 // 0 - 1 cycle
+        (t.sin() + 1.0)/2.0 // 0 - 1 cycle
         + 0.1 // don't approach 0.
     }
 }
@@ -35,10 +58,12 @@ impl Heart {
             .collect();
         Heart {
             points: points,
-            scale: 2.0,
+            scale: 2.5,
             beat: Beat {
-                interval: 300.0,
-                scale: 20.0,
+                interval: 30.0,
+                scale: 5.0,
+                kind: BeatKind::IntermittentSin,
+                ph: 0.0,
             },
         }
     }

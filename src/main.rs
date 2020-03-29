@@ -20,7 +20,7 @@ struct Model {
 impl Model {
     fn step(&mut self) {
         self.t += 1;
-        self.heart.scale = self.heart.beat.get(self.t);
+        self.heart.scale = 20.0 + self.heart.beat.get(self.t);
     }
 }
 
@@ -33,18 +33,8 @@ fn model(_app: &App) -> Model {
 
     _app.main_window().set_maximized(true);
 
-    let rect = Rect::from_w_h(640.0, 400.0);
-
-    let particles = (0..500)
-        .map(|_| {
-            Particle::new(
-                2.0 as f32,
-                random_range(rect.left(), rect.right()),
-                random_range(rect.top(), rect.bottom()),
-                LIFETIMES,
-            )
-        })
-        .collect();
+    let rect = Rect::from_w_h(10.0, 10.0);
+    let particles = Vec::<Particle>::new();
 
     Model {
         t: 0,
@@ -96,7 +86,7 @@ fn update(_app: &App, m: &mut Model, _update: Update) {
                     2.0 as f32,
                     random_range(m.source.left(), m.source.right()),
                     random_range(m.source.top(), m.source.bottom()),
-                    1000,
+                    LIFETIMES,
                 )
             })
             .collect();
