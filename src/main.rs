@@ -1,105 +1,126 @@
-use std::panic;
+pub mod heart;
+pub mod particle;
+
+use heart::Heart;
 use nannou::prelude::*;
+use particle::Particle;
 
-struct Heart {
-    points: Vec<(f32, f32)>, 
-}
-
-impl Heart {
-    fn new() -> Heart {
-        let points = (0..=360).map(|t_| {
-            let t: f32 = deg_to_rad(t_ as f32);
-            let x: f32 = 16.0 * t.sin().powi(3);
-            let y: f32 = (13.0 * t.cos()) - (5.0 * (2.0*t).cos()) - (2.0 * (3.0*t).cos()) - (4.0*t).cos();
-        (x, y)
-        }).collect();
-        Heart {
-            points: points,
-        }
-    }
-
-    fn scaled_points(&self, scale: f32) -> Vec<Point2> {
-        self.points.iter().map(|(x, y)| {
-            pt2(scale*x, scale*y)
-        }).collect()
-    }
-}
+const GLOBAL_FADE: f32 = 0.00025;
+const LIFETIMES: i32 = 250;
+const NEW_PARTICLES: bool = true;
 
 struct Model {
     t: i32,
     heart: Heart,
-    beat_t: f32, 
-    beat_interval: f32, 
-    beat_scale: f32,
+    particles: Vec<Particle>,
+    container: Rect,
+    source: Rect,
 }
 
 impl Model {
     fn step(&mut self) {
         self.t += 1;
-        self.beat_t = (
-            self.beat_scale * 
-            (((self.t as f32)/self.beat_interval).sin() + 1.0)/2.0) // 0 - 1 cycle
-        + 0.1; // don't approach 0.
+        self.heart.scale = self.heart.beat.get(self.t);
     }
 }
 
 fn main() {
-    nannou::app(model)
-        //.event(event)
-        .update(update)
-        .simple_window(view)
-        .run();
+    nannou::app(model).update(update).run();
 }
 
 fn model(_app: &App) -> Model {
+    _app.new_window().event(event).view(view).build().unwrap();
+
+    _app.main_window().set_maximized(true);
+
+    let rect = Rect::from_w_h(640.0, 400.0);
+
+    let particles = (0..500)
+        .map(|_| {
+            Particle::new(
+                2.0 as f32,
+                random_range(rect.left(), rect.right()),
+                random_range(rect.top(), rect.bottom()),
+                LIFETIMES,
+            )
+        })
+        .collect();
+
     Model {
-        t: 1500,
+        t: 0,
         heart: Heart::new(),
-        beat_t: 0.1,
-        beat_interval: 100.0,
-        beat_scale: 20.0,
+        particles: particles,
+        container: rect,
+        source: rect,
     }
 }
 
-//fn event(_app: &App, _model: &mut Model, _event: Event) {
-//}
-
-fn update(_app: &App, _model: &mut Model, _update: Update) {
-    _model.step()
+fn event(_app: &App, m: &mut Model, event: WindowEvent) {
+    match event {
+        Resized(_) => {
+            let (w, h) = _app.main_window().inner_size_points();
+            let rect = Rect::from_w_h(w as f32, h as f32);
+            m.container = rect;
+        }
+        _other => (),
+    }
 }
 
-fn view(_app: &App, _model: &Model, _frame: Frame) {
+fn update(_app: &App, m: &mut Model, _update: Update) {
+    if m.t == 30 {
+        let (w, h) = _app.main_window().inner_size_points();
+        let rect = Rect::from_w_h(w as f32, h as f32);
+        m.container = rect;
+    }
+
+    m.step();
+
+    for i in 0..m.particles.len() {
+        for j in 0..m.particles.len() {
+            if i != j {
+                let force = m.particles[j].repel(&m.particles[i]);
+                m.particles[i].apply_force(force);
+            }
+        }
+        m.particles[i].update();
+        m.particles[i]._check_edges(m.container);
+    }
+    if LIFETIMES >= 0 {
+        m.particles.retain(|p| p.lifetime > 0);
+    }
+
+    if NEW_PARTICLES {
+        let new_particles: Vec<Particle> = (0..1)
+            .map(|_| {
+                Particle::new(
+                    2.0 as f32,
+                    random_range(m.source.left(), m.source.right()),
+                    random_range(m.source.top(), m.source.bottom()),
+                    1000,
+                )
+            })
+            .collect();
+        m.particles.extend(new_particles);
+    }
+}
+
+fn view(_app: &App, m: &Model, _frame: Frame) {
     // Prepare to draw.
     let draw = _app.draw();
 
-    // Clear the background to purple.
-    draw.background().color(PLUM);
+    // Fade out everything a tiny bit.
+    draw.rect()
+        .rgba(1.0, 1.0, 1.0, GLOBAL_FADE)
+        .w(m.container.w())
+        .h(m.container.h());
 
-    // Draw a blue ellipse with default size and position.
-    let points = _model.heart.scaled_points(_model.beat_t);
-    //println!("model.t {}", _model.t);
-    //println!("scale {}", _model.beat_t);
-    {
-        draw.polygon()
-        .color(STEELBLUE)
-        .points(points);
+    // Draw particles
+    for particle in &m.particles {
+        particle.display(&draw);
     }
 
-    
-    /*{
-    let points = (0..=_model.t).map(|t_| {
-        let t: f32;
-        let x: f32;
-        let y: f32;
-        t = (t_ as f32);
-        x = 16.0 * t.sin().powi(3);
-        y = (13.0 * t.cos()) - (5.0 * (2.0*t).cos()) - (2.0 * (3.0*t).cos()) - (4.0*t).cos();
-        (pt2(scale*x, scale*y), PLUM)
-    });
-    draw.polyline()
-        .weight(0.1)
-        .colored_points(points);
-    }*/
+    // Draw a black heart with default size and position.
+    m.heart.display(&draw);
 
     // Write to the window frame.
     draw.to_frame(_app, &_frame).unwrap();
