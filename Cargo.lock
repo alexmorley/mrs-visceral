@@ -511,6 +511,7 @@ name = "gen-millen"
 version = "0.1.0"
 dependencies = [
  "nannou",
+ "winit 0.22.0",
 ]
 
 [[package]]
@@ -1027,7 +1028,7 @@ dependencies = [
  "toml",
  "walkdir",
  "wgpu",
- "winit",
+ "winit 0.21.0",
 ]
 
 [[package]]
@@ -2245,6 +2246,35 @@ name = "winit"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65a5c1a5ef76ac31cc97ad29489acdbed2178f3fc12ca00ee6cb11d60adb5a3a"
+dependencies = [
+ "android_glue",
+ "bitflags",
+ "cocoa",
+ "core-foundation",
+ "core-graphics",
+ "core-video-sys",
+ "dispatch",
+ "instant",
+ "lazy_static",
+ "libc",
+ "log",
+ "mio",
+ "mio-extras",
+ "objc",
+ "parking_lot 0.10.0",
+ "percent-encoding",
+ "raw-window-handle",
+ "smithay-client-toolkit",
+ "wayland-client",
+ "winapi 0.3.8",
+ "x11-dl",
+]
+
+[[package]]
+name = "winit"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02e9092b71b48ad6a0d98835a786308d10760cc09369d02e4a166608327f1f26"
 dependencies = [
  "android_glue",
  "bitflags",

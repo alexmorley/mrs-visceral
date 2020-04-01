@@ -10,7 +10,7 @@ pub struct Beat {
     interval: f32,
     scale: f32,
     kind: BeatKind,
-    ph: f32,
+    pub ph: f32,
 }
 
 impl Beat {
@@ -19,7 +19,7 @@ impl Beat {
         match self.kind {
             BeatKind::Sin => self.sin(s_t),
             BeatKind::IntermittentSin=> {
-                if (s_t.floor() as i32 % 3 == 0) {
+                if s_t.floor() as i32 % 3 == 0 {
                     self.ph += 1.0 / self.interval;
                     return self.sin(self.ph * 2.0 * std::f32::consts::PI)
                 } else {
@@ -58,9 +58,9 @@ impl Heart {
             .collect();
         Heart {
             points: points,
-            scale: 2.5,
+            scale: 20.0,
             beat: Beat {
-                interval: 30.0,
+                interval: 60.0,
                 scale: 5.0,
                 kind: BeatKind::IntermittentSin,
                 ph: 0.0,
@@ -77,6 +77,6 @@ impl Heart {
 
     pub fn display(&self, draw: &Draw) {
         let points = self.scaled_points();
-        draw.polygon().color(BLACK).points(points);
+        draw.polygon().rgba(0.0, 0.0, 0.0, 1.0).points(points);
     }
 }
