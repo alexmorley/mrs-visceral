@@ -44,7 +44,7 @@ fn model(_app: &App) -> Model {
                 LIFETIMES,
             )
         })
-        .collect();
+    .collect();
 
     Model {
         t: 0,
@@ -99,7 +99,7 @@ fn update(_app: &App, m: &mut Model, _update: Update) {
                     1000,
                 )
             })
-            .collect();
+        .collect();
         m.particles.extend(new_particles);
     }
 }
@@ -124,4 +124,11 @@ fn view(_app: &App, m: &Model, _frame: Frame) {
 
     // Write to the window frame.
     draw.to_frame(_app, &_frame).unwrap();
+
+    let mut file_path = _app.project_path()
+        .expect("  ");
+    file_path.push("output/img");
+    file_path = file_path.join(format!("{:06}", _frame.nth()))
+        .with_extension("png");
+    _app.main_window().capture_frame(file_path);
 }
