@@ -3,8 +3,9 @@ use nannou::prelude::*;
 
 const UPDATE_PRECISION: f32 = 1.0; // [0.0, 1.0]
 const BOUNCE_VELOCITY_GAIN: f32 = 0.01;
-const LIFETIMES: i32 = 5000;
+const LIFETIMES: i32 = 100000;
 
+#[derive(Clone)]
 pub struct Particle {
     lifetime: i32,
     position: Point2,
@@ -14,6 +15,7 @@ pub struct Particle {
     _lifetime_initial: i32,
 }
 
+#[derive(Clone)]
 struct Modulation {
     size: f32,
     speed: f32,
@@ -26,6 +28,7 @@ impl Modulation {
     }
 }
 
+#[derive(Clone)]
 pub struct Source {
     extent: Rect,
     modulation: Modulation,
@@ -43,7 +46,6 @@ impl Source {
         self.modulation.size = size;
         self.modulation.speed = speed;
         self.modulation.probability = probability;
-        println!("{}", probability);
     }
 
     pub fn get(&self, size: f32, speed: f32) -> Option<Particle> {
@@ -61,6 +63,7 @@ impl Source {
     }
 }
 
+#[derive(Clone)]
 pub struct ParticleSystem {
     pub particles: Vec<Particle>,
     pub sources: Vec<Source>,
@@ -108,7 +111,7 @@ impl ParticleSystem {
         // Get new particles from sources
         for source in &self.sources {
             for _ in 0..10 {
-                if let Some(p) = source.get(3.0, 1.0) {
+                if let Some(p) = source.get(1.5, 1.0) {
                     self.particles.push(p);
                 }
             }

@@ -1,11 +1,13 @@
 use nannou::app::Draw;
 use nannou::prelude::*;
 
+#[derive(Clone)]
 enum BeatKind {
     Sin,
     IntermittentSin,
 }
 
+#[derive(Clone)]
 pub struct Beat {
     interval: f32,
     scale: f32,
@@ -37,6 +39,7 @@ impl Beat {
     }
 }
 
+#[derive(Clone)]
 pub struct Heart {
     points: Vec<(f32, f32)>,
     pub scale: f32,
