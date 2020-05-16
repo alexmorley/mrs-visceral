@@ -1,132 +1,222 @@
-pub mod heart;
-pub mod particle;
-
-extern crate winit;
-
-use heart::Heart;
+use nannou::draw::Draw;
+use nannou::noise::{NoiseFn, Perlin, Seedable};
 use nannou::prelude::*;
-use nannou::winit::window::WindowBuilder;
-use particle::ParticleSystem;
-use std::collections::VecDeque;
 
-const GLOBAL_FADE: f32 = 0.02;
-const NEW_PARTICLES: f32 = 3.0;
-
-const ITERATIONS: i32 = 3000;
-
-struct Model {
-    states: VecDeque<ModelState>,
-    current_state: Option<ModelState>
+fn main() {
+    nannou::app(model).update(update).run();
 }
 
-impl Model {
-    fn run(&mut self, iter: i32) {
-        for i in 0..iter {
-            println!("iter: {}", i);
-            let next_model_state = self.states.back().cloned();
-            if let Some(mut model) = next_model_state{
-                model.step();
-                self.states.push_back(model);
-            }
+struct Agent {
+    vector: Vector2,
+    vector_old: Vector2,
+    randomizer: f32,
+    step_size: f32,
+    z_noise: f32,
+    angle: f32,
+    color: Hsla,
+    noise_scale: f64,
+    noise_strength: f64,
+    agent_width: f32,
+    agent_width_min: f32,
+    agent_width_max: f32,
+    noise_z_velocity: f64,
+    win_rect: Rect,
+}
+
+impl Agent {
+    fn new(
+        win_rect: Rect,
+        noise_sticking_range: f32,
+        agent_alpha: f32,
+        noise_scale: f64,
+        noise_strength: f64,
+        agent_width_min: f32,
+        agent_width_max: f32,
+        noise_z_velocity: f64,
+    ) -> Self {
+        let vector = vec2(
+            random_range(win_rect.left(), win_rect.right()),
+            random_range(win_rect.top(), win_rect.bottom()),
+        );
+        let randomizer = random_f32();
+        let color = if randomizer < 0.5 {
+            hsla(random_range(0.47, 0.52), 0.7, random_f32(), agent_alpha)
+        } else {
+            hsla(random_range(0.11, 0.16), 0.7, random_f32(), agent_alpha)
+        };
+        Agent {
+            vector,
+            vector_old: vector,
+            randomizer,
+            step_size: 1.0 + randomizer * 4.0,
+            z_noise: random_f32() * noise_sticking_range,
+            angle: 0.0,
+            color,
+            noise_scale,
+            noise_strength,
+            agent_width: agent_width_min,
+            agent_width_min,
+            agent_width_max,
+            noise_z_velocity,
+            win_rect,
         }
     }
 
-    fn next(&mut self) -> Option<ModelState> {
-        self.states.pop_front()
+    fn update(&mut self, noise: Perlin, draw_mode: u8) {
+        self.vector_old = self.vector;
+        self.z_noise += self.noise_z_velocity as f32;
+
+        let n = noise.get([
+            self.vector.x as f64 / self.noise_scale,
+            self.vector.y as f64 / self.noise_scale,
+            self.z_noise as f64,
+        ]) * self.noise_strength;
+        self.angle = n as f32;
+
+        self.vector.x += self.angle.cos() * self.step_size;
+        self.vector.y += self.angle.sin() * self.step_size;
+
+        if self.vector.x < self.win_rect.left() - 10.0 {
+            self.vector.x = self.win_rect.right() + 10.0;
+            self.vector_old.x = self.vector.x;
+        }
+        if self.vector.x > self.win_rect.right() + 10.0 {
+            self.vector.x = self.win_rect.left() - 10.0;
+            self.vector_old.x = self.vector.x;
+        }
+        if self.vector.y < self.win_rect.bottom() - 10.0 {
+            self.vector.y = self.win_rect.top() + 10.0;
+            self.vector_old.y = self.vector.y;
+        }
+        if self.vector.y > self.win_rect.top() + 10.0 {
+            self.vector.y = self.win_rect.bottom() - 10.0;
+            self.vector_old.y = self.vector.y;
+        }
+
+        self.agent_width =
+            nannou::geom::range::Range::new(self.agent_width_min, self.agent_width_max)
+                .lerp(self.randomizer);
+
+        if draw_mode == 2 {
+            self.agent_width *= 2.0;
+        }
+    }
+
+    fn display(&self, draw: &Draw, draw_mode: u8, stroke_weight: f32) {
+        if draw_mode == 1 {
+            draw.line()
+                .start(self.vector_old)
+                .end(self.vector)
+                .color(self.color)
+                .stroke_weight(stroke_weight * self.step_size);
+
+            //let draw = draw.x_y(self.vector_old.x, self.vector_old.y).rotate(
+            //    (self.vector.y - self.vector_old.y).atan2(self.vector.x - self.vector_old.x),
+            //);
+
+            draw.line()
+                .start(pt2(0.0, -self.agent_width))
+                .end(pt2(0.0, self.agent_width))
+                .color(self.color)
+                .stroke_weight(stroke_weight * self.step_size);
+        } else if draw_mode == 2 {
+            draw.ellipse()
+                .x_y(self.vector_old.x, self.vector_old.y)
+                .radius(self.agent_width / 2.0)
+                .stroke_weight(stroke_weight)
+                .stroke(self.color)
+                .no_fill();
+        }
     }
 }
 
-
-#[derive(Clone)]
-struct ModelState {
-    t: i32,
-    heart: Heart,
-    particle_system: ParticleSystem,
-    container: Rect,
+struct Model {
+    agents: Vec<Agent>,
+    overlay_alpha: f32,
+    stroke_width: f32,
+    draw_mode: u8,
+    noise_seed: u32,
 }
 
-impl ModelState {
-    fn step(&mut self) {
-        self.t += 1;
-        self.heart.scale = 20.0 + self.heart.beat.get(self.t);
-
-        let mut f = (0.25 - self.heart.beat.ph).abs();
-        f = if f > 0.2 {1.0 - f} else {0.0};
-        self.particle_system.sources[0].modulate(f+0.5, f.max(0.1), f);
-        self.particle_system.step();
-    }
-}
-
-fn main() {
-    nannou::app(initialize_model).update(update).run();
-}
-
-fn initialize_model(_app: &App) -> Model {
-    // Start a maximized window
-    _app.new_window()
-        .window(WindowBuilder::new().with_maximized(false))
+fn model(app: &App) -> Model {
+    app.new_window()
+        .size(1280, 720)
         .view(view)
+        .key_released(key_released)
         .build()
         .unwrap();
 
-    let (w, h) = _app.main_window().inner_size_points();
-    let window_container = Rect::from_w_h(w as f32, h as f32);
+    let agent_count = 2000;
+    let noise_scale = 100.0;
+    let noise_strength = 10.0;
+    let noise_sticking_range = 0.4;
+    let noise_z_velocity = 0.01;
+    let agent_alpha = 0.9;
+    let agent_width_min = 1.5;
+    let agent_width_max = 15.0;
+    let agents = (0..agent_count)
+        .map(|_| {
+            Agent::new(
+                app.window_rect(),
+                noise_sticking_range,
+                agent_alpha,
+                noise_scale,
+                noise_strength,
+                agent_width_min,
+                agent_width_max,
+                noise_z_velocity,
+            )
+        })
+        .collect();
 
-    let heart = Heart::new();
-
-    let heart_point = heart.scaled_points()[290];
-    let rect = Rect::from_xy_wh(heart_point, Vector2::new(30.0, 30.0));
-
-    let mut particle_system = ParticleSystem::new(window_container);
-    particle_system.add_source(rect);
-
-    let initial_model = ModelState {
-        t: 0,
-        heart: Heart::new(),
-        particle_system: particle_system,
-        container: window_container,
-    };
-    let mut model = Model {
-        states: VecDeque::from(vec![initial_model]),
-        current_state: None,
-    };
-    model.run(ITERATIONS);
-    model
+    Model {
+        agents,
+        overlay_alpha: 0.08,
+        stroke_width: 2.0,
+        draw_mode: 1,
+        noise_seed: 12,
+    }
 }
 
 fn update(_app: &App, model: &mut Model, _update: Update) {
-    model.current_state = model.next();
+    let noise = Perlin::new().set_seed(model.noise_seed);
+
+    for agent in &mut model.agents {
+        agent.update(noise, model.draw_mode);
+    }
 }
 
-fn view(_app: &App, model: &Model, _frame: Frame) {
-    let draw = _app.draw();
-    
-    // Fade out everything a tiny bit.
-    let (w, h) = _app.main_window().inner_size_points();
-    draw.rect()
-        .rgba(1.0, 1.0, 1.0, GLOBAL_FADE)
-        .w(w)
-        .h(h);
+fn view(app: &App, model: &Model, frame: Frame) {
+    // Begin drawing
+    let draw = app.draw();
 
-    if let Some(m) = &model.current_state {
-        // Draw particles
-        for particle in &m.particle_system.particles {
-            particle.display(&draw);
-        }
-
-        // Draw a black heart with default size and position.
-        m.heart.display(&draw);
+    if frame.nth() == 0 || app.keys.down.contains(&Key::Delete) {
+        draw.background().color(WHITE);
+    } else {
+        draw.rect()
+            .wh(app.window_rect().wh())
+            .hsla(0.0, 0.0, 1.0, model.overlay_alpha);
     }
 
-    // Write to the window frame.
-    draw.to_frame(_app, &_frame).unwrap();
-    
-    if false {
-        let mut file_path = _app.project_path()
-            .expect("  ");
-        file_path.push("output/img");
-        file_path = file_path.join(format!("bleeding_{:06}", _frame.nth()))
-            .with_extension("png");
-        _app.main_window().capture_frame(file_path);
+    model.agents.iter().for_each(|agent| {
+        agent.display(&draw, model.draw_mode, model.stroke_width);
+    });
+
+    // Write the result of our drawing to the window's frame.
+    draw.to_frame(app, &frame).unwrap();
+}
+
+fn key_released(app: &App, model: &mut Model, key: Key) {
+    match key {
+        Key::Key1 => model.draw_mode = 1,
+        Key::Key2 => model.draw_mode = 2,
+        Key::Space => {
+            model.noise_seed = (random_f32() * 10000.0).floor() as u32;
+        }
+        Key::S => {
+            app.main_window()
+                .capture_frame(app.exe_name().unwrap() + ".png");
+        }
+        _other_key => {}
     }
 }
